@@ -1,0 +1,13 @@
+/Debug
+/Release
+/ipch
+/bin
+/Win32
+/objs
+*.sdf
+*.opensdf
+*.suo
+*.pub
+*.prv
+*.7z
+7za*
