@@ -18,5 +18,5 @@ objs/7zCrypto.o: 7zCrypto.cpp
 	g++ -c $(INCLUDE_PATH) 7zCrypto.cpp -o objs/7zCrypto.o
 	
 clean: 
-	rm $(OBJECT_OUTPUT_PATH)*.o 
+	rm objs/*.o 
 	rm $(BIN_PATH)7zCrypto
