@@ -1,9 +1,9 @@
 /Debug
 /Release
 /ipch
-/bin
+/bin/*
 /Win32
-/objs
+/objs/*
 *.sdf
 *.opensdf
 *.suo
