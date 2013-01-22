@@ -8,6 +8,13 @@ Building:
 Both Boost and crypto++ are required. You can refer to their documentation for both downloads and installation instructions. 
 On Linux edit the makefile to reflect your directories. On Windows you need to add a property sheet to Visual Studio.
 
+In addition to stock Boost an unofficial library, Boost Process, is required. Its application into Boost was rejected, but it's still useful.
+It can be downloaded from http://www.highscore.de/boost/gsoc2010/process.zip
+Extract the files into your Boost folders (Boost/boost and Boost/libs).
+
+Unfortunately it was made for an older version of Boost and requires a simple modification to work with Boost 1.52.0.
+Change boost/process/operations.hpp to include boost/filesystem/operations.hpp instead of boost/filesystem/path.hpp
+
 Usage:
 ======
 At the moment OpenSSL keys aren't supported, only crypto++ keys are. They can be generated as follows.
