@@ -179,7 +179,8 @@ public:
 	  T(file, mode), file(file) { }
 
 	  ~CTempFile() {
-		  boost::filesystem::remove(file);
+		  boost::system::error_code ec;
+		  boost::filesystem::remove(file, ec); // no throw
 	  }
 };
 
