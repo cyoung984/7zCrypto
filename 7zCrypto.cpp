@@ -175,6 +175,19 @@ public:
 };
 
 template <class KeyType>
+void BERDecode(KeyType& key, BufferedTransformation& bt);
+template <>
+void BERDecode<RSA::PrivateKey>(RSA::PrivateKey& key, BufferedTransformation& bt)
+{
+	key.BERDecodePrivateKey(bt, false, 0);
+}
+template <>
+void BERDecode<RSA::PublicKey>(RSA::PublicKey& key, BufferedTransformation& bt)
+{
+	key.BERDecodePublicKey(bt, false, 0);
+}
+
+template <class KeyType>
 bool LoadKey(RandomNumberGenerator& rng, const std::string& file, 
 	KeyType& key)
 {
@@ -182,6 +195,27 @@ bool LoadKey(RandomNumberGenerator& rng, const std::string& file,
 	FileSource KeyFile(file.c_str(), true, new Base64Decoder);
 	KeyFile.TransferTo(q);
 	key.Load(q);
+	return key.Validate(rng, 2);	
+}
+
+// If key can't be loaded try treating it as raw (asn1 xxKey)
+template <class KeyType>
+bool LoadKeyAndTryRaw(RandomNumberGenerator& rng, const std::string& file, 
+	KeyType& key)
+{
+	try { return LoadKey<KeyType>(rng, file, key); }
+	catch (CryptoPP::Exception&)
+	{
+		ByteQueue q;
+		// todo: custom BufferedTransformation which ignores
+		// -----BEGIN RSA PRIVATE KEY-----\n
+		// [ output this data here ]
+		// -----END RSA PRIVATE KEY-----
+		// for public too ofc (ie ignore any line starting with --)
+		FileSource KeyFile(file.c_str(), true, new Base64Decoder);
+		KeyFile.TransferTo(q);
+		BERDecode<KeyType>(key, q);
+	}
 	return key.Validate(rng, 2);
 }
 
@@ -197,7 +231,7 @@ int main(int argc, char** argv)
 	try {
 		if (command == "a") { // build file and add to archive
 			string archive, symmetric_key;
-
+			
 			cout << "7z archive : ";
 			cin >> archive;
 
@@ -218,7 +252,7 @@ int main(int argc, char** argv)
 				try
 				{
 					RSA::PublicKey pubKey;
-					if (!LoadKey<RSA::PublicKey>(GlobalRNG(), keyfile, pubKey)) {
+					if (!LoadKeyAndTryRaw<RSA::PublicKey>(GlobalRNG(), keyfile, pubKey)) {
 						cout << "The key is corrupt!" << endl;
 						continue;
 					}
@@ -248,7 +282,6 @@ int main(int argc, char** argv)
 			file.close(); // 7z will be wanting to read it
 			AddFileToArchive(archive, KEY_FILE_NAME);
 			
-			
 			cout << "\n\nThe key file was successfully added to '" << archive
 				<< "'\nIt can now be decrypted with any matching private keys" << endl;
 		} else if (command == "e") {
@@ -260,7 +293,8 @@ int main(int argc, char** argv)
 			
 			cout << "Loading key ... " << endl;
 			RSA::PrivateKey privKey;
-			if (!LoadKey<RSA::PrivateKey>(GlobalRNG(), privateKey, privKey)) {
+
+			if (!LoadKeyAndTryRaw<RSA::PrivateKey>(GlobalRNG(), privateKey, privKey)) {
 				throw std::runtime_error("The key is corrupt!");
 			}
 			cout << "Loaded!" << endl;
@@ -270,8 +304,6 @@ int main(int argc, char** argv)
 				throw std::runtime_error("This archive doesn't have the required key file.");
 			CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::in); // just so it deletes
 			file.close();
-
-			
 			
 			std::string password = ProcessKeyFile(KEY_FILE_NAME, privKey);
 			ExtractAllFilesFromArchive(archive, password);
