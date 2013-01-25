@@ -3,59 +3,17 @@
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
 #include <cryptopp/dll.h>
-#include <cryptopp/randpool.h>
-#include <cryptopp/base64.h>
-
 #include <boost/process.hpp>
-
-#include <map>
 #include <iostream>
-#include <time.h>
+#include "MyRSA.h"
 
 using namespace CryptoPP;
 using namespace std;
 
 static const char* KEY_FILE_NAME = "7zCrypto_keyfile_u440eadIvX0oJk0G6KWw";
 
-void GenerateRSAKey(unsigned int keyLength, const char *privFilename, const char *pubFilename, const char *seed);
-string RSAEncryptString(const char *pubFilename, const char *seed, const char *message);
-string RSADecryptString(const char *privFilename, const char *ciphertext);
-
 static OFB_Mode<AES>::Encryption s_globalRNG;
-RandomNumberGenerator & GlobalRNG()
-{
-	return s_globalRNG;
-}
-
-bool get_save_line(std::istream& in, vector<string>& out)
-{
-	string line;
-	if (getline(in, line) && !in.bad())	{
-		out.push_back(line);
-		return true;
-	}
-	return false;
-}
-
-std::string CalculateSHA256(const std::string& input)
-{
-	SHA256 hash;
-	std::string digest;
-	StringSource _(input, true,
-		new HashFilter(hash,
-		new HexEncoder (new StringSink(digest))));
-	return digest;
-}
-
-void GenerarePsuedoRandomString(char* out, size_t size_of_out)
-{
-	static const char* alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	static const int alphabet_len = strlen(alphabet);
-	if (size_of_out <= 1) return;
-	for (size_t x = 0; x < size_of_out-1; x++, out++)
-		*out = alphabet[GlobalRNG().GenerateByte() % alphabet_len];
-	*out = '\0';
-}
+RandomNumberGenerator & GlobalRNG() { return s_globalRNG; }
 
 // Throws std::exception
 int Run7zip(std::vector<std::string>& args)
@@ -153,15 +111,15 @@ void ExtractAllFilesFromArchive(const std::string& archive,
 	}
 }
 
-std::string ProcessKeyFile(const std::string& keysFile, const std::string& privateKey)
+std::string ProcessKeyFile(const std::string& keysFile, RSA::PrivateKey& privateKey)
 {
 	fstream file(keysFile.c_str(), fstream::in);
 	string line;
 	while (getline(file, line)) {
 		try	{
-			return RSADecryptString(privateKey.c_str(), line.c_str());
-		} catch(CryptoPP::Exception&)	{
-			//cout << e.what() << endl;
+			return RSADecryptString(GlobalRNG(), privateKey, line.c_str());
+		} catch(CryptoPP::Exception& e)	{
+			cout << e.what() << endl;
 		}
 	}
 	file.close();
@@ -184,6 +142,7 @@ public:
 	  }
 };
 
+
 int main(int argc, char** argv)
 {
 	std::string command;
@@ -196,11 +155,11 @@ int main(int argc, char** argv)
 	try {
 		if (command == "a") { // build file and add to archive
 			string archive, symmetric_key;
-
+			
 			cout << "7z archive : ";
 			cin >> archive;
 
-			vector<string> public_keys;
+			vector<RSA::PublicKey> public_keys;
 			cout << "Archive password : ";
 			cin >> symmetric_key;
 
@@ -209,22 +168,42 @@ int main(int argc, char** argv)
 
 			cout << "Enter the paths to public key files you wish to use. Send EOF when done." << endl;
 			cin.ignore();
-			do 	{
+			while (1) {
 				cout << "\nPublic key file : "; 
-			} while (get_save_line(cin, public_keys));
-
+				string keyfile;
+				if (!getline(cin, keyfile) || cin.bad()) break;
+				
+				try
+				{
+					RSA::PublicKey pubKey;
+					if (!LoadKeyAndTryRaw<RSA::PublicKey>(GlobalRNG(), keyfile, pubKey)) {
+						cout << "The key is corrupt!" << endl;
+						continue;
+					}
+					
+					public_keys.push_back(pubKey);
+				}
+				catch (FileStore::OpenErr&)
+				{
+					cout << "Unable to open the specified key file." << endl;
+				}
+				catch (BERDecodeErr&)
+				{
+					cout << "Cannot read the key. Are you sure it's public?" << endl;
+				}
+			}
+			
 			CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::out);
+			
 			// Build the key file
 			for (size_t x = 0; x < public_keys.size(); x++) {
-				char seed[33];
-				GenerarePsuedoRandomString(seed, sizeof(seed));
-				string ciphertext = RSAEncryptString(public_keys[x].c_str(), 
-					seed, symmetric_key.c_str());
-				file << ciphertext << endl;
+				string ciphertext = RSAEncryptString(GlobalRNG(), public_keys[x], 
+						symmetric_key.c_str());
+				file << ciphertext << endl;					
 			}
 			file.close(); // 7z will be wanting to read it
 			AddFileToArchive(archive, KEY_FILE_NAME);
-
+			
 			cout << "\n\nThe key file was successfully added to '" << archive
 				<< "'\nIt can now be decrypted with any matching private keys" << endl;
 		} else if (command == "e") {
@@ -234,12 +213,21 @@ int main(int argc, char** argv)
 			cout << "Private key: ";
 			cin >> privateKey;
 			
+			cout << "Loading key ... " << endl;
+			RSA::PrivateKey privKey;
+
+			if (!LoadKeyAndTryRaw<RSA::PrivateKey>(GlobalRNG(), privateKey, privKey)) {
+				throw std::runtime_error("The key is corrupt!");
+			}
+			cout << "Loaded!" << endl;
+
 			ExtractKeyFileFromArchive(archive);
 			if (!boost::filesystem::exists(KEY_FILE_NAME)) 
 				throw std::runtime_error("This archive doesn't have the required key file.");
 			CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::in); // just so it deletes
 			file.close();
-			std::string password = ProcessKeyFile(KEY_FILE_NAME, privateKey);
+			
+			std::string password = ProcessKeyFile(KEY_FILE_NAME, privKey);
 			ExtractAllFilesFromArchive(archive, password);
 			cout << "\nThe archive was successfully extracted" << endl;
 		} else if (command == "g") { // generate keys
@@ -252,10 +240,8 @@ int main(int argc, char** argv)
 			cout << "Private key file : ";
 			cin >> privateKey;
 
-			char seed[33];
-			GenerarePsuedoRandomString(seed, sizeof(seed));
-			GenerateRSAKey(keyLength, privateKey.c_str(), publicKey.c_str(),
-				seed);
+			GenerateRSAKey(GlobalRNG(), keyLength, privateKey.c_str(), 
+				publicKey.c_str());
 		} else {
 			cout << "usage: " << endl;
 			cout << "a - Generate and add key file to archive." << endl;
@@ -268,50 +254,15 @@ int main(int argc, char** argv)
 		cout << "\nError : " << e.what() << endl;
 		return -1;
 	}
-	catch (std::runtime_error & e) 
+	catch (std::exception & e) 
 	{
 		cout << "\nError : " << e.what() << endl;
 		return -1;
 	}
+	catch (...)
+	{
+		cout << "Unhandled exception" << endl;
+	}
+
 	return 0;
-}
-
-void GenerateRSAKey(unsigned int keyLength, const char *privFilename, const char *pubFilename, const char *seed)
-{
-	RandomPool randPool;
-	randPool.IncorporateEntropy((byte *)seed, strlen(seed));
-
-	RSAES_OAEP_SHA_Decryptor priv(randPool, keyLength);
-	HexEncoder privFile(new FileSink(privFilename));
-	priv.DEREncode(privFile);
-	privFile.MessageEnd();
-
-	RSAES_OAEP_SHA_Encryptor pub(priv);
-	HexEncoder pubFile(new FileSink(pubFilename));
-	pub.DEREncode(pubFile);
-	pubFile.MessageEnd();
-}
-
-
-string RSAEncryptString(const char *pubFilename, const char *seed, const char *message)
-{
-	FileSource pubFile(pubFilename, true, new HexDecoder);
-	RSAES_OAEP_SHA_Encryptor pub(pubFile);
-
-	RandomPool randPool;
-	randPool.IncorporateEntropy((byte *)seed, strlen(seed));
-
-	string result;
-	StringSource(message, true, new PK_EncryptorFilter(randPool, pub, new HexEncoder(new StringSink(result))));
-	return result;
-}
-
-string RSADecryptString(const char *privFilename, const char *ciphertext)
-{
-	FileSource privFile(privFilename, true, new HexDecoder);
-	RSAES_OAEP_SHA_Decryptor priv(privFile);
-
-	string result;
-	StringSource(ciphertext, true, new HexDecoder(new PK_DecryptorFilter(GlobalRNG(), priv, new StringSink(result))));
-	return result;
 }
