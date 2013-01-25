@@ -83,6 +83,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="7zCrypto.cpp" />
+    <ClCompile Include="MyRSA.cpp" />
+    <ClCompile Include="PEMCleanser.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MyRSA.h" />
+    <ClInclude Include="PEMCleanser.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

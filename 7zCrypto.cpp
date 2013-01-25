@@ -3,49 +3,17 @@
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 
 #include <cryptopp/dll.h>
-#include <cryptopp/randpool.h>
-#include <cryptopp/base64.h>
-
 #include <boost/process.hpp>
-
-#include <map>
 #include <iostream>
-#include <time.h>
+#include "MyRSA.h"
 
 using namespace CryptoPP;
 using namespace std;
 
 static const char* KEY_FILE_NAME = "7zCrypto_keyfile_u440eadIvX0oJk0G6KWw";
 
-void GenerateRSAKey(unsigned int keyLength, const char *privFilename, const char *pubFilename, const char *seed);
-string RSAEncryptString(RSA::PublicKey& pubKey, const char *seed, const char *message);
-string RSADecryptString(RSA::PrivateKey& privKey, const char *ciphertext);
-
 static OFB_Mode<AES>::Encryption s_globalRNG;
-RandomNumberGenerator & GlobalRNG()
-{
-	return s_globalRNG;
-}
-
-std::string CalculateSHA256(const std::string& input)
-{
-	SHA256 hash;
-	std::string digest;
-	StringSource _(input, true,
-		new HashFilter(hash,
-		new HexEncoder (new StringSink(digest))));
-	return digest;
-}
-
-void GenerarePsuedoRandomString(char* out, size_t size_of_out)
-{
-	static const char* alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	static const int alphabet_len = strlen(alphabet);
-	if (size_of_out <= 1) return;
-	for (size_t x = 0; x < size_of_out-1; x++, out++)
-		*out = alphabet[GlobalRNG().GenerateByte() % alphabet_len];
-	*out = '\0';
-}
+RandomNumberGenerator & GlobalRNG() { return s_globalRNG; }
 
 // Throws std::exception
 int Run7zip(std::vector<std::string>& args)
@@ -149,7 +117,7 @@ std::string ProcessKeyFile(const std::string& keysFile, RSA::PrivateKey& private
 	string line;
 	while (getline(file, line)) {
 		try	{
-			return RSADecryptString(privateKey, line.c_str());
+			return RSADecryptString(GlobalRNG(), privateKey, line.c_str());
 		} catch(CryptoPP::Exception& e)	{
 			cout << e.what() << endl;
 		}
@@ -174,50 +142,6 @@ public:
 	  }
 };
 
-template <class KeyType>
-void BERDecode(KeyType& key, BufferedTransformation& bt);
-template <>
-void BERDecode<RSA::PrivateKey>(RSA::PrivateKey& key, BufferedTransformation& bt)
-{
-	key.BERDecodePrivateKey(bt, false, 0);
-}
-template <>
-void BERDecode<RSA::PublicKey>(RSA::PublicKey& key, BufferedTransformation& bt)
-{
-	key.BERDecodePublicKey(bt, false, 0);
-}
-
-template <class KeyType>
-bool LoadKey(RandomNumberGenerator& rng, const std::string& file, 
-	KeyType& key)
-{
-	ByteQueue q;
-	FileSource KeyFile(file.c_str(), true, new Base64Decoder);
-	KeyFile.TransferTo(q);
-	key.Load(q);
-	return key.Validate(rng, 2);	
-}
-
-// If key can't be loaded try treating it as raw (asn1 xxKey)
-template <class KeyType>
-bool LoadKeyAndTryRaw(RandomNumberGenerator& rng, const std::string& file, 
-	KeyType& key)
-{
-	try { return LoadKey<KeyType>(rng, file, key); }
-	catch (CryptoPP::Exception&)
-	{
-		ByteQueue q;
-		// todo: custom BufferedTransformation which ignores
-		// -----BEGIN RSA PRIVATE KEY-----\n
-		// [ output this data here ]
-		// -----END RSA PRIVATE KEY-----
-		// for public too ofc (ie ignore any line starting with --)
-		FileSource KeyFile(file.c_str(), true, new Base64Decoder);
-		KeyFile.TransferTo(q);
-		BERDecode<KeyType>(key, q);
-	}
-	return key.Validate(rng, 2);
-}
 
 int main(int argc, char** argv)
 {
@@ -273,10 +197,8 @@ int main(int argc, char** argv)
 			
 			// Build the key file
 			for (size_t x = 0; x < public_keys.size(); x++) {
-				char seed[33];
-				GenerarePsuedoRandomString(seed, sizeof(seed));
-				string ciphertext = RSAEncryptString(public_keys[x], 
-						seed, symmetric_key.c_str());
+				string ciphertext = RSAEncryptString(GlobalRNG(), public_keys[x], 
+						symmetric_key.c_str());
 				file << ciphertext << endl;					
 			}
 			file.close(); // 7z will be wanting to read it
@@ -318,10 +240,8 @@ int main(int argc, char** argv)
 			cout << "Private key file : ";
 			cin >> privateKey;
 
-			char seed[33];
-			GenerarePsuedoRandomString(seed, sizeof(seed));
-			GenerateRSAKey(keyLength, privateKey.c_str(), publicKey.c_str(),
-				seed);
+			GenerateRSAKey(GlobalRNG(), keyLength, privateKey.c_str(), 
+				publicKey.c_str());
 		} else {
 			cout << "usage: " << endl;
 			cout << "a - Generate and add key file to archive." << endl;
@@ -345,43 +265,4 @@ int main(int argc, char** argv)
 	}
 
 	return 0;
-}
-
-void GenerateRSAKey(unsigned int keyLength, const char *privFilename, const char *pubFilename, const char *seed)
-{
-	RandomPool randPool;
-	randPool.IncorporateEntropy((byte *)seed, strlen(seed));
-
-	RSAES_OAEP_SHA_Decryptor priv(randPool, keyLength);
-	Base64Encoder privFile(new FileSink(privFilename));
-	priv.DEREncode(privFile);
-	privFile.MessageEnd();
-
-	RSAES_OAEP_SHA_Encryptor pub(priv);
-	Base64Encoder pubFile(new FileSink(pubFilename));
-	pub.DEREncode(pubFile);
-	pubFile.MessageEnd();
-}
-
-
-string RSAEncryptString(RSA::PublicKey& pubKey, const char *seed, const char *message)
-{
-	string result;
-	RSAES_OAEP_SHA_Encryptor enc(pubKey);
-
-	RandomPool randPool;
-	randPool.IncorporateEntropy((byte *)seed, strlen(seed));
-
-	//string result;
-	StringSource(message, true, new PK_EncryptorFilter(randPool, enc, new HexEncoder(new StringSink(result))));
-	return result;
-}
-
-string RSADecryptString(RSA::PrivateKey& privKey, const char *ciphertext)
-{
-	RSAES_OAEP_SHA_Decryptor priv(privKey);
-
-	string result;
-	StringSource(ciphertext, true, new HexDecoder(new PK_DecryptorFilter(GlobalRNG(), priv, new StringSink(result))));
-	return result;
 }

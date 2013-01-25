@@ -18,5 +18,19 @@
     <ClCompile Include="7zCrypto.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PEMCleanser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MyRSA.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="PEMCleanser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MyRSA.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
