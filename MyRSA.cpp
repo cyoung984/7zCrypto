@@ -34,12 +34,12 @@ void GenerateRSAKey(RandomNumberGenerator& rng,
 	randPool.IncorporateEntropy((byte *)seed, strlen(seed));
 
 	RSAES_OAEP_SHA_Decryptor priv(randPool, keyLength);
-	Base64Encoder privFile(new FileSink(privFilename));
+	RSAKeyEncoder privFile(new FileSink(privFilename));
 	priv.DEREncode(privFile);
 	privFile.MessageEnd();
 
 	RSAES_OAEP_SHA_Encryptor pub(priv);
-	Base64Encoder pubFile(new FileSink(pubFilename));
+	RSAKeyEncoder pubFile(new FileSink(pubFilename));
 	pub.DEREncode(pubFile);
 	pubFile.MessageEnd();
 }

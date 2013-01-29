@@ -53,7 +53,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;WIN32;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;WIN32;WIN32_LEAN_AND_MEAN;CP_IGNORE_REST;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -83,12 +83,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="7zCrypto.cpp" />
+    <ClCompile Include="CmdLineParser.cpp" />
     <ClCompile Include="MyRSA.cpp" />
     <ClCompile Include="PEMCleanser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CmdLineParser.h" />
     <ClInclude Include="MyRSA.h" />
     <ClInclude Include="PEMCleanser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="e_arg_ids.def" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

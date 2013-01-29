@@ -24,6 +24,9 @@
     <ClCompile Include="MyRSA.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CmdLineParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PEMCleanser.h">
@@ -32,5 +35,13 @@
     <ClInclude Include="MyRSA.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CmdLineParser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="e_arg_ids.def">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

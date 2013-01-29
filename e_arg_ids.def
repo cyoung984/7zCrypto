@@ -1,0 +1,11 @@
+// CP_IGNORE_REST should be defined for preprocessor
+kSwitchForwardRestParams = kIgnoreRest,
+kAddKeyToArchive,
+kExtractArchive,
+kGenerateKey,
+kSwitchPublicKey,
+kSwitchPrivateKey,
+kSwitchKeyLength,
+kSwitchArchive,
+kSwitchArchivePassword,
+kSwitchShow7zOutput,

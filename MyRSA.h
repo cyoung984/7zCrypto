@@ -6,8 +6,11 @@
 #include <cryptopp/randpool.h>
 #include <cryptopp/base64.h>
 #include <cryptopp/files.h>
-
+#include <cryptopp/base64.h>
 #include "PEMCleanser.h"
+
+typedef CryptoPP::Base64Encoder RSAKeyEncoder;
+typedef CryptoPP::Base64Decoder RSAKeyDecoder;
 
 void GenerateRSAKey(CryptoPP::RandomNumberGenerator& rng,
 	unsigned int keyLength, const char *privFilename, const char *pubFilename);
@@ -25,7 +28,7 @@ bool LoadKey(CryptoPP::RandomNumberGenerator& rng, const std::string& file,
 {
 	using namespace CryptoPP;
 	ByteQueue q;
-	FileSource KeyFile(file.c_str(), true, new PEMCleanser(new Base64Decoder));
+	FileSource KeyFile(file.c_str(), true, new PEMCleanser(new RSAKeyDecoder));
 	KeyFile.TransferTo(q);
 	key.Load(q);
 	return key.Validate(rng, 2);	
@@ -41,7 +44,7 @@ bool LoadKeyAndTryRaw(CryptoPP::RandomNumberGenerator& rng, const std::string& f
 	catch (CryptoPP::Exception&)
 	{
 		ByteQueue q;
-		FileSource KeyFile(file.c_str(), true, new PEMCleanser(new Base64Decoder));
+		FileSource KeyFile(file.c_str(), true, new PEMCleanser(new RSAKeyDecoder));
 		KeyFile.TransferTo(q);
 		BERDecode<KeyType>(key, q);
 	}
