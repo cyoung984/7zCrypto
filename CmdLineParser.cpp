@@ -34,12 +34,12 @@ s_arg_param::s_arg_param(const char* param) : param(param)
 {
 }
 
-std::string s_arg_param::GetString()
+std::string s_arg_param::GetString() const
 {
 	return param;
 }
 
-unsigned int s_arg_param::GetUInt()
+unsigned int s_arg_param::GetUInt() const
 {
 	unsigned int n;
 	if (!StringToNumber<unsigned int>(param, n))
@@ -48,11 +48,11 @@ unsigned int s_arg_param::GetUInt()
 }
 
 //-------------------------------------------------------------------------
-CArgEntity::CArgEntity() : id(kNone), cur_index(0) 
+CArgEntity::CArgEntity() : cur_index(0), id(kNone) 
 {
 }
 
-CArgEntity::CArgEntity(e_arg_ids id) : id(id), cur_index(0) 
+CArgEntity::CArgEntity(e_arg_ids id) : cur_index(0), id(id)
 {
 }
 
@@ -199,3 +199,4 @@ bool CCommandLineParser::FindArgument(const char* arg, bool is_switch,
 	}
 	return false;
 }
+

@@ -25,11 +25,11 @@ public:
 	s_arg_param(const std::string& param);
 	s_arg_param(const char* param);
 
-	std::string GetString();
-	std::string GetStringOneOf(const std::vector<std::string>& options);
-	double GetDouble();
-	int GetInt();
-	unsigned int GetUInt();
+	std::string GetString() const;
+	std::string GetStringOneOf(const std::vector<std::string>& options) const;
+	double GetDouble() const;
+	int GetInt() const;
+	unsigned int GetUInt() const;
 };
 
 struct s_arg_entry
@@ -84,9 +84,9 @@ protected:
 private:
 	char** argv;
 	int argc, cur;
-	const s_arg_entry* arglist;
 	size_t nargs;
-
+	const s_arg_entry* arglist;
+	
 	CArgEntity command;
 	typedef std::map<e_arg_ids, CArgEntity> switches_t;
 	switches_t switches;

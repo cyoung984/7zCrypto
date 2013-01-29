@@ -143,224 +143,6 @@ public:
 	  }
 };
 
-// commands and switches need to be able to specify parameters
-// params must directly follow the relevant command/switch
-// there must only ever be one command
-// 
-
-/*class s_arg_param
-{
-private:
-	std::string param;
-public:
-	s_arg_param(const std::string& param)
-		: param(param) {}
-
-	std::string GetString();
-	std::string GetStringOneOf(const std::vector<std::string>& options);
-	double GetDouble();
-	int GetInt();
-	unsigned int GetUInt();
-};
-
-enum e_arg_ids
-{
-	kNone = 0,
-	kAddKeyToArchive,
-	kExtractArchive,
-	kGenerateKey,
-	kSwitchPublicKey,
-	kSwitchPrivateKey,
-	kSwitchKeyLength,
-	kSwitchArchive,
-	kSwitchShow7zOutput,
-	kSwitchForwardRestParams
-};
-
-struct s_arg_entry
-{
-	const char* str;
-	e_arg_ids id;
-	bool is_switch;
-#ifdef CP_LONG_SWITCH
-	bool long_switch;
-#endif
-	size_t nargs;
-};
-
-s_arg_entry g_arg_list[] = 
-{
-	{"a", kAddKeyToArchive, false, 0},
-	{"e", kExtractArchive, false, 0},
-	{"g", kGenerateKey, false, 0},
-	{"pub", kSwitchPublicKey, true, 1},
-	{"prv", kSwitchPrivateKey, true, 1},
-	{"len", kSwitchKeyLength, true, 1},
-	{"arc", kSwitchArchive, true, 1},
-	{"v", kSwitchShow7zOutput, true},
-	{"forward", kSwitchForwardRestParams, true, 0}
-};
-#define CP_IGNORE_REST	kSwitchForwardRestParams
-
-
-class CArgEntity
-{
-private:
-	std::vector<s_arg_param> params;
-	size_t cur_index;
-	
-public:
-	e_arg_ids id;
-
-	CArgEntity() : id(kNone), cur_index(0) {}
-	CArgEntity(e_arg_ids id) : id(id), cur_index(0) {}
-	void SetID(e_arg_ids id) { this->id = id; }
-	void Add(s_arg_param& param) { params.push_back(param); }
-	const s_arg_param GetParam() { return params[cur_index++]; }
-	size_t size() { return params.size(); }
-};
-
-class CCommandException : public std::exception
-{
-public:
-	CCommandException(const char* err) : std::exception(err) {}
-};
-
-class CCommandLineParser
-{
-public:
-
-	// first arg should be file path (ie exactly what comes from crt)
-	CCommandLineParser(char** argv, int argc, s_arg_entry* arglist, size_t nargs)
-		: argv(argv), argc(argc), cur(1), nargs(nargs), arglist(arglist)
-	{
-		char* command;
-		while (ReadString(&command))
-		{
-			size_t size = strlen(command);
-			if (size == 0) continue;
-			if (size > 1 && command[0] == '-') { // switch
-#ifdef CP_LONG_SWITCH
-				bool long_switch = command[1] == '-';
-				if (long_switch) ProcessSwitch(command + 2);
-				else {
-					for (size_t x = 1; x < size; x++)
-						ProcessSwitch(command[x]);
-				}
-#else
-				ProcessSwitch(command + 1);
-#endif
-			} else {
-				ProcessCommand(command);
-			}
-		}
-
-		cur_switch = switches.begin();
-	}
-	
-	const CArgEntity& GetCommand() const { return command; }
-	const CArgEntity GetSwitch() { return cur_switch++->second;	}
-	bool GetSwitch(e_arg_ids id, CArgEntity& out) const {
-		auto itr = switches.find(id);
-		if (itr == switches.end()) return false;
-		out = itr->second;
-		return true;
-	}
-
-	size_t NumberOfSwitches() const { return switches.size(); }
-
-	void ProcessCommand(const char* command_str)
-	{
-		const s_arg_entry* command;
-		if (!FindArgument(command_str, false, &command))
-			RaiseError("unknown command");
-
-		if (this->command.id != kNone)
-			RaiseError("unexpected command.. already got one.");
-		this->command.SetID(command->id);
-		ReadParams(command, this->command);		
-	}
-
-	void ReadParams(const s_arg_entry* arg, CArgEntity& out)
-	{
-		for (size_t x = 0; x < arg->nargs; x++) {
-			char* arg_str;
-			if (!ReadString(&arg_str)) RaiseError("expected arg");
-			std::string str = arg_str;
-			if (str.size() > 0){
-				if (str.at(0) == '-') RaiseError("expected arg");
-				out.Add(s_arg_param(arg_str));
-			}
-		}
-	}
-
-	void ProcessSwitch(const char* switch_str)
-	{
-		const s_arg_entry* s;
-		if (!FindArgument(switch_str, true, &s))
-			RaiseError("unknown switch");
-		CArgEntity entity(s->id);
-#ifdef CP_IGNORE_REST
-		// special case: if we get the forward switch stop processing
-		// everything and treat it as a single command.
-		if (s->id == CP_IGNORE_REST) {
-			char* arg_str;
-			while (ReadString(&arg_str)) entity.Add(s_arg_param(arg_str));
-		} else 	ReadParams(s, entity);
-#else
-		ReadParams(s, entity);
-#endif
-		switches.insert(std::pair<e_arg_ids, CArgEntity>(entity.id, entity));
-	}
-
-#ifdef CP_LONG_SWITCH
-	void ProcessSwitch(char c)
-	{
-		char switch_str[2] = {c, 0};
-		return ProcessSwitch(switch_str);
-	}
-#endif
-		
-protected:
-	virtual void RaiseError(const std::string& err)
-	{
-		cout << "Throwing : " << err << endl;
-		throw CCommandException(err.c_str());
-	}
-private:
-	char** argv;
-	int argc, cur;
-	const s_arg_entry* arglist;
-	size_t nargs;
-
-	bool ReadString(char** out)
-	{
-		if (argc > cur) {
-			*out = argv[cur++];
-			return true;
-		}
-		else return false;
-	}
-
-	bool FindArgument(const char* arg, bool is_switch, const s_arg_entry** out) const
-	{
-		for (size_t i = 0; i < nargs; i++) {
-			if (is_switch == arglist[i].is_switch &&
-				!strcmp(arg, arglist[i].str)) {
-				*out = &arglist[i];
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	CArgEntity command;
-	std::map<e_arg_ids, CArgEntity> switches;
-	std::map<e_arg_ids, CArgEntity>::iterator cur_switch;
-//	size_t index;
-
-};*/
-
 s_arg_entry g_arg_list[] = 
 {
 	{"a", kAddKeyToArchive, false, 0},
@@ -398,14 +180,14 @@ int show_help()
 }
 
 template <class T>
-T ReadCommandLineType(s_arg_param p);
+T ReadCommandLineType(const s_arg_param& p);
 template <>
-std::string ReadCommandLineType<std::string>(s_arg_param p)
+std::string ReadCommandLineType<std::string>(const s_arg_param& p)
 {
 	return p.GetString();
 }
 template <>
-unsigned int ReadCommandLineType<unsigned int>(s_arg_param p)
+unsigned int ReadCommandLineType<unsigned int>(const s_arg_param& p)
 {
 	return p.GetUInt();
 }
@@ -566,6 +348,11 @@ int main(int argc, char** argv)
 				
 				GenerateRSAKey(GlobalRNG(), keyLength, privateKey.c_str(), 
 					publicKey.c_str());
+			} break;
+
+		default: 
+			{
+				cout << "command not handled" << endl;
 			} break;
 		}
 	}
