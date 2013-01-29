@@ -398,14 +398,14 @@ int show_help()
 }
 
 template <class T>
-T ReadCommandLineType(s_arg_param& p);
+T ReadCommandLineType(s_arg_param p);
 template <>
-std::string ReadCommandLineType<std::string>(s_arg_param& p)
+std::string ReadCommandLineType<std::string>(s_arg_param p)
 {
 	return p.GetString();
 }
 template <>
-unsigned int ReadCommandLineType<unsigned int>(s_arg_param& p)
+unsigned int ReadCommandLineType<unsigned int>(s_arg_param p)
 {
 	return p.GetUInt();
 }
@@ -506,8 +506,8 @@ int main(int argc, char** argv)
 				if (c.GetSwitch(kSwitchPublicKey, &arg)) 
 					ProcessPublicKeyFile(arg->GetParam(0).GetString(), public_keys);
 				else {
-					cout << "Enter the paths to public key files you wish to use. Send EOF when done.\n" << endl;
-					cin.ignore();
+					cout << "Enter the paths to the public key files you wish to use. Send EOF when done.\n" << endl;
+				
 					while (1) {
 						std::string keyfile;
 						cout << "Public key file : ";

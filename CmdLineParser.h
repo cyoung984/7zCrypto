@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <stdexcept>
 
 enum e_arg_ids
 {
@@ -22,6 +23,7 @@ private:
 	std::string param;
 public:
 	s_arg_param(const std::string& param);
+	s_arg_param(const char* param);
 
 	std::string GetString();
 	std::string GetStringOneOf(const std::vector<std::string>& options);
@@ -53,16 +55,16 @@ public:
 	CArgEntity();
 	CArgEntity(e_arg_ids id);
 	void SetID(e_arg_ids id);
-	void Add(s_arg_param& param);
+	void Add(s_arg_param param);
 
 	s_arg_param GetParam(size_t index);
 	size_t size() const;
 };
 
-class CCommandException : public std::exception
+class CCommandException : public std::runtime_error
 {
 public:
-	CCommandException(const char* err) : std::exception(err) {}
+	CCommandException(const char* err) : std::runtime_error(err) {}
 };
 
 class CCommandLineParser
@@ -86,8 +88,9 @@ private:
 	size_t nargs;
 
 	CArgEntity command;
-	std::map<e_arg_ids, CArgEntity> switches;
-	std::map<e_arg_ids, CArgEntity>::iterator cur_switch;
+	typedef std::map<e_arg_ids, CArgEntity> switches_t;
+	switches_t switches;
+	switches_t::iterator cur_switch;
 
 	void ProcessCommand(const char* command_str);
 	void ReadParams(const s_arg_entry* arg, CArgEntity& out);

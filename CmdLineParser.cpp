@@ -1,4 +1,6 @@
 #include "CmdLineParser.h"
+#include <cstdlib>
+#include <cstring>
 
 // Helper function for StringToNumber
 template <class T>
@@ -25,6 +27,10 @@ bool StringToNumber(const std::string& str, T& out)
 }
 
 s_arg_param::s_arg_param(const std::string& param)	: param(param) 
+{
+}
+
+s_arg_param::s_arg_param(const char* param) : param(param)
 {
 }
 
@@ -55,7 +61,7 @@ void CArgEntity::SetID(e_arg_ids id)
 	this->id = id;
 }
 
-void CArgEntity::Add(s_arg_param& param) 
+void CArgEntity::Add(s_arg_param param) 
 { 
 	params.push_back(param); 
 }
@@ -104,7 +110,7 @@ CArgEntity* CCommandLineParser::GetCommand() { return &command; }
 CArgEntity* CCommandLineParser::GetSwitch() { return &cur_switch++->second;	}
 bool CCommandLineParser::GetSwitch(e_arg_ids id, CArgEntity** out)
 {
-	auto itr = switches.find(id);
+	switches_t::iterator itr = switches.find(id);
 	if (itr == switches.end()) return false;
 	*out = &itr->second;
 	return true;
@@ -135,7 +141,7 @@ void CCommandLineParser::ReadParams(const s_arg_entry* arg, CArgEntity& out)
 		std::string str = arg_str;
 		if (str.size() > 0){
 			if (str.at(0) == '-') RaiseError("expected arg");
-			out.Add(s_arg_param(arg_str));
+			out.Add(arg_str);
 		}
 	}
 }
@@ -151,7 +157,7 @@ void CCommandLineParser::ProcessSwitch(const char* switch_str)
 	// everything and treat it as a single command.
 	if (s->id == kIgnoreRest) {
 		char* arg_str;
-		while (ReadString(&arg_str)) entity.Add(s_arg_param(arg_str));
+		while (ReadString(&arg_str)) entity.Add(arg_str);
 	} else 	ReadParams(s, entity);
 #else
 	ReadParams(s, entity);
