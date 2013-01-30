@@ -48,11 +48,11 @@ unsigned int s_arg_param::GetUInt() const
 }
 
 //-------------------------------------------------------------------------
-CArgEntity::CArgEntity() : cur_index(0), id(kNone) 
+CArgEntity::CArgEntity() : id(kNone) 
 {
 }
 
-CArgEntity::CArgEntity(e_arg_ids id) : cur_index(0), id(id)
+CArgEntity::CArgEntity(e_arg_ids id) : id(id)
 {
 }
 
@@ -68,7 +68,7 @@ void CArgEntity::Add(s_arg_param param)
 
 s_arg_param CArgEntity::GetParam(size_t index) 
 { 
-	return params[cur_index++];
+	return params[index];
 }
 
 size_t CArgEntity::size() const 
@@ -112,7 +112,7 @@ bool CCommandLineParser::GetSwitch(e_arg_ids id, CArgEntity** out)
 {
 	switches_t::iterator itr = switches.find(id);
 	if (itr == switches.end()) return false;
-	*out = &itr->second;
+	if (out) *out = &itr->second;
 	return true;
 }
 

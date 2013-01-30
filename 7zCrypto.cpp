@@ -16,6 +16,10 @@ static const char* KEY_FILE_NAME = "7zCrypto_keyfile_u440eadIvX0oJk0G6KWw";
 static OFB_Mode<AES>::Encryption s_globalRNG;
 RandomNumberGenerator & GlobalRNG() { return s_globalRNG; }
 
+// globals because i'm lazy
+static bool g_Verbose = false;
+CArgEntity* forwardArgs = NULL;
+
 // Throws std::exception
 int Run7zip(std::vector<std::string>& args)
 {
@@ -26,9 +30,13 @@ int Run7zip(std::vector<std::string>& args)
 #endif
 	try {
 		args.push_back("-y");
+		if (forwardArgs) {
+			for (size_t x = 0; x < forwardArgs->size(); x++)
+				args.push_back(forwardArgs->GetParam(x).GetString());
+		}
 		boost::process::context ctx;
 		ctx.work_dir = boost::filesystem::path(boost::filesystem::current_path()).generic_string();
-		ctx.streams[boost::process::stdout_id] = boost::process::behavior::null();
+		if (!g_Verbose) ctx.streams[boost::process::stdout_id] = boost::process::behavior::null();
 		boost::process::child c = boost::process::create_child(exec, args, ctx);
 
 		int exit_code = c.wait();
@@ -262,11 +270,8 @@ int main(int argc, char** argv)
 		const CArgEntity* command = c.GetCommand();
 		if (command->id == kNone) return show_help();
 
-		/*cout << c.NumberOfSwitches() << " switches." << endl;
-		for (size_t x = 0; x < c.NumberOfSwitches(); x++) {
-			const CArgEntity* s = c.GetSwitch();
-			cout << "Switch with id " << s->id << endl;
-		}*/
+		g_Verbose = c.GetSwitch(kSwitchShow7zOutput, NULL);
+		c.GetSwitch(kSwitchForwardRestParams, &forwardArgs);
 
 		std::string seed = IntToString(time(NULL));
 		seed.resize(16);

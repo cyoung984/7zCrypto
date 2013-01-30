@@ -47,7 +47,6 @@ class CArgEntity
 {
 private:
 	std::vector<s_arg_param> params;
-	size_t cur_index;
 
 public:
 	e_arg_ids id;
