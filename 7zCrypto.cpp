@@ -142,13 +142,20 @@ class CTempFile : public T
 private:
 	std::string file;
 public:
+	CTempFile() : T() {}
 	CTempFile(const char* file, std::ios_base::openmode mode) : 
 	  T(file, mode), file(file) { }
 
-	  ~CTempFile() {
-		  boost::system::error_code ec;
-		  boost::filesystem::remove(file, ec); // no throw
-	  }
+	void open(const char* file, std::ios_base::openmode mode) {
+		this->file = file;
+		return T::open(file, mode);
+	}
+
+	~CTempFile() {
+		close();
+		boost::system::error_code ec;
+		boost::filesystem::remove(file, ec); // no throw
+	}
 };
 
 s_arg_entry g_arg_list[] = 
@@ -156,12 +163,15 @@ s_arg_entry g_arg_list[] =
 	{"a", kAddKeyToArchive, false, 0},
 	{"e", kExtractArchive, false, 0},
 	{"g", kGenerateKey, false, 0},
+	{"k", kGenerateKeyFile, false, 0},
 	{"pub", kSwitchPublicKey, true, 1},
 	{"prv", kSwitchPrivateKey, true, 1},
 	{"len", kSwitchKeyLength, true, 1},
 	{"arc", kSwitchArchive, true, 1},
 	{"p", kSwitchArchivePassword, true, 1},
-	{"v", kSwitchShow7zOutput, true},
+	{"nocheck", kSwitchNoPasswordCheck, true, 0},
+	{"v", kSwitchShow7zOutput, true, 0},
+	{"keyfile", kSwitchExternalKeyFile, true, 1},
 	{"forward", kSwitchForwardRestParams, true, 0}
 };
 #define GET_NUMBER_ARGS(x) sizeof(x) / sizeof(s_arg_entry)
@@ -172,13 +182,16 @@ const char* usage_desc = "\n"
 	"  a: Add keyfile to the archive\n"
 	"  e: Extract files from the archive\n"
 	"  g: Generate RSA key pair\n"
+	"  k: Generate the keyfile and save to disk.\n"
 	"<switches>:\n"
 	"  -pub <file>: the public key to use.\n"
 	"  -prv <file>: the private key to use.\n"
 	"  -len <positive integer>: the key length in bits\n"
 	"  -arc <file>: the archive to operate on.\n"
 	"  -p <password>: the archive's password\n"
+	"  -nocheck: don't verify the archive's password\n"
 	"  -v: verbose mode (show 7zip output)\n"
+	"  -keyfile <file>: use specified file as the keyfile.\n"	
 	"  -forward: forward all following command line data to 7zip.\n";
 
 int show_help()
@@ -233,6 +246,11 @@ std::string ReadArchivePassword(CCommandLineParser& c)
 	return ReadFromUser<std::string>(c, kSwitchArchivePassword, "Archive password");
 }
 
+std::string ReadKeyFileName(CCommandLineParser& c)
+{
+	return ReadFromUser<std::string>(c, kSwitchExternalKeyFile, "Key file");
+}
+
 unsigned int ReadKeyBitlength(CCommandLineParser& c)
 {
 	return ReadFromUser<unsigned int>(c, kSwitchKeyLength, "Key length in bits");
@@ -261,6 +279,45 @@ void ProcessPublicKeyFile(const std::string& keyfile,
 	cout << endl;
 }
 
+void GenerateKeyFile(CCommandLineParser& c, const std::string& archive,
+	std::fstream& fileStream)
+{
+	std::string symmetric_key = ReadArchivePassword(c);		
+
+	if (!c.GetSwitch(kSwitchNoPasswordCheck, NULL)){
+		cout << "\nChecking password...\n\n";
+		Check7zPassword(archive, symmetric_key);
+	} else cout << "\nSkipping password check...\n\n";
+
+	vector<RSA::PublicKey> public_keys;
+
+	CArgEntity* arg;
+	if (c.GetSwitch(kSwitchPublicKey, &arg)) 
+		ProcessPublicKeyFile(arg->GetParam(0).GetString(), public_keys);
+	else {
+		cout << "Enter the paths to the public key files you wish to use. Send EOF when done.\n" << endl;
+
+		while (1) {
+			std::string keyfile;
+			cout << "Public key file : ";
+			cin >> keyfile;
+
+			if (!keyfile.size()) break;
+			ProcessPublicKeyFile(keyfile, public_keys);
+		}
+	}
+
+	if (public_keys.size() == 0) 
+		throw std::runtime_error("No keys were loaded.");
+
+	// Build the key file
+	for (size_t x = 0; x < public_keys.size(); x++) {
+		string ciphertext = RSAEncryptString(GlobalRNG(), public_keys[x], 
+			symmetric_key.c_str());
+		fileStream << ciphertext << endl;					
+	}
+}
+
 int main(int argc, char** argv)
 {
 	try
@@ -282,40 +339,10 @@ int main(int argc, char** argv)
 		case kAddKeyToArchive:
 			{		
 				std::string archive = ReadArchiveName(c);
-				std::string symmetric_key = ReadArchivePassword(c);		
-			
-				cout << "\nChecking password..." << endl << endl;
-				Check7zPassword(archive, symmetric_key);
-
-				vector<RSA::PublicKey> public_keys;
-
-				CArgEntity* arg;
-				if (c.GetSwitch(kSwitchPublicKey, &arg)) 
-					ProcessPublicKeyFile(arg->GetParam(0).GetString(), public_keys);
-				else {
-					cout << "Enter the paths to the public key files you wish to use. Send EOF when done.\n" << endl;
-				
-					while (1) {
-						std::string keyfile;
-						cout << "Public key file : ";
-						cin >> keyfile;
-
-						if (!keyfile.size()) break;
-						ProcessPublicKeyFile(keyfile, public_keys);
-					}
-				}
-
-				if (public_keys.size() == 0) 
-					throw std::runtime_error("No keys were loaded.");
 
 				CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::out);
-
-				// Build the key file
-				for (size_t x = 0; x < public_keys.size(); x++) {
-					string ciphertext = RSAEncryptString(GlobalRNG(), public_keys[x], 
-						symmetric_key.c_str());
-					file << ciphertext << endl;					
-				}
+				GenerateKeyFile(c, archive, file);
+				
 				file.close(); // 7z will be wanting to read it
 				AddFileToArchive(archive, KEY_FILE_NAME);
 
@@ -329,18 +356,37 @@ int main(int argc, char** argv)
 				std::string privateKey = ReadPrivateKeyFile(c);
 				
 				RSA::PrivateKey privKey;
-
 				if (!LoadKeyAndTryRaw<RSA::PrivateKey>(GlobalRNG(), privateKey, privKey)) {
 					throw std::runtime_error("The key is corrupt!");
 				}
-				
-				ExtractKeyFileFromArchive(archive);
-				if (!boost::filesystem::exists(KEY_FILE_NAME)) 
-					throw std::runtime_error("This archive doesn't have the required key file.");
-				CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::in); // just so it deletes
-				file.close();
+				std::string keyfile = KEY_FILE_NAME;
+				bool bManualKeyFile = false;
 
-				std::string password = ProcessKeyFile(KEY_FILE_NAME, privKey);
+				CArgEntity* keyfilearg;
+				if (c.GetSwitch(kSwitchExternalKeyFile, &keyfilearg)) {
+					keyfile = keyfilearg->GetParam(0).GetString();
+					bManualKeyFile = true;
+				} else {
+					cout << "Extracting key file from archive...\n\n";
+					ExtractKeyFileFromArchive(archive);
+				}
+
+				if (!boost::filesystem::exists(keyfile)) {
+					std::stringstream ss;
+					if (!bManualKeyFile) ss << "This archive doesn't have the required key file.";
+					else ss << "Cannot find specified key file '" << keyfile << "'";
+					throw std::runtime_error(ss.str());
+				}
+
+				CTempFile<std::fstream> file;
+				if (!bManualKeyFile) { 
+					file.open(KEY_FILE_NAME, std::ios_base::in); // just so it deletes
+					file.close();
+				}
+
+				cout << "Processing key file...\n";
+				std::string password = ProcessKeyFile(keyfile, privKey);
+				cout << "Extracting archive...\n";
 				ExtractAllFilesFromArchive(archive, password);
 				cout << "\nThe archive was successfully extracted" << endl;
 			} break;
@@ -353,6 +399,26 @@ int main(int argc, char** argv)
 				
 				GenerateRSAKey(GlobalRNG(), keyLength, privateKey.c_str(), 
 					publicKey.c_str());
+			} break;
+
+		case kGenerateKeyFile:
+			{
+				std::string archive = ReadArchiveName(c);
+				std::string keyfile = ReadKeyFileName(c);
+				std::fstream file(keyfile, std::ios_base::out);
+
+				if (file.fail()) throw std::exception("cannot create output file");
+
+				try {
+					GenerateKeyFile(c, archive, file);
+				} catch (...) {
+					file.close();
+					boost::system::error_code ec;
+					boost::filesystem::remove(keyfile, ec); // no throw
+					throw;
+				}
+
+				cout << "\nThe keyfile was successfully generated." << endl;
 			} break;
 
 		default: 
