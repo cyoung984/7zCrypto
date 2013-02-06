@@ -141,20 +141,28 @@ class CTempFile : public T
 {
 private:
 	std::string file;
+	bool do_delete;
 public:
-	CTempFile() : T() {}
+	CTempFile() : T(), do_delete(true) {}
 	CTempFile(const char* file, std::ios_base::openmode mode) : 
-	  T(file, mode), file(file) { }
+	  T(file, mode), file(file), do_delete(false) { }
 
 	void open(const char* file, std::ios_base::openmode mode) {
 		this->file = file;
 		return T::open(file, mode);
 	}
 
+	// don't delete the file in destructor
+	void success() {
+
+	}
+
 	~CTempFile() {
-		close();
-		boost::system::error_code ec;
-		boost::filesystem::remove(file, ec); // no throw
+		close(); // so we can delete
+		if (do_delete) {
+			boost::system::error_code ec;
+			boost::filesystem::remove(file, ec); // no throw
+		}
 	}
 };
 
@@ -341,6 +349,7 @@ int main(int argc, char** argv)
 				std::string archive = ReadArchiveName(c);
 
 				CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::out);
+				if (file.fail()) throw std::runtime_error("cannot create temeporary keyfile.");
 				GenerateKeyFile(c, archive, file);
 				
 				file.close(); // 7z will be wanting to read it
@@ -405,18 +414,12 @@ int main(int argc, char** argv)
 			{
 				std::string archive = ReadArchiveName(c);
 				std::string keyfile = ReadKeyFileName(c);
-				std::fstream file(keyfile, std::ios_base::out);
+				CTempFile<std::fstream> file(keyfile.c_str(), std::ios_base::out);
 
-				if (file.fail()) throw std::exception("cannot create output file");
+				if (file.fail()) throw std::runtime_error("cannot create output file");
 
-				try {
-					GenerateKeyFile(c, archive, file);
-				} catch (...) {
-					file.close();
-					boost::system::error_code ec;
-					boost::filesystem::remove(keyfile, ec); // no throw
-					throw;
-				}
+				GenerateKeyFile(c, archive, file);
+				file.success(); // don't delete it
 
 				cout << "\nThe keyfile was successfully generated." << endl;
 			} break;
