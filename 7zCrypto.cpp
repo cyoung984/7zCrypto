@@ -154,7 +154,7 @@ public:
 
 	// don't delete the file in destructor
 	void success() {
-
+		do_delete = false;
 	}
 
 	~CTempFile() {
