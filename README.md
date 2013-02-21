@@ -10,6 +10,7 @@ On Linux edit the makefile to reflect your directories. On Windows you need to a
 
 In addition to stock Boost an unofficial library, Boost Process, is required. Its application into Boost was rejected, but it's still useful.
 It can be downloaded from http://www.highscore.de/boost/gsoc2010/process.zip
+
 Extract the files into your Boost folders (Boost/boost and Boost/libs).
 
 Unfortunately it was made for an older version of Boost and requires a simple modification to work with Boost 1.52.0.
@@ -19,6 +20,7 @@ Alternatively, you can download process.zip which has the required changes and i
 Usage:
 ======
 
+```
 usage: <command> [<switches>...]
 
 <commands>:
@@ -36,25 +38,30 @@ usage: <command> [<switches>...]
   -v: verbose mode (show 7zip output)
   -keyfile <file>: use specified file as the keyfile.
   -forward: forward all following command line data to 7zip.
-  
-Note: You need to have 7za (7-zip) in the same directory as 7zCrypto, or in your $PATH.
+```
+
+Note: You need to have 7za (7-zip) in the same directory as 7zCrypto, or in your `$PATH`.
 
 OpenSSL keys are supported, but cannot be generated. Keys generated via 7zCrypto are not compatible with OpenSSL.
 
 You can generate a key as follows. 
 
+```
 $ 7zCrypto.exe g
 Key length in bits : 2048
 Public key file : key.pub
 Private key file : key.prv
+```
+Or, if you perfer command line: `$ 7zCrypto.exe g -prv key.prv -pub key.pub -len 2048`
 
-Or, if you perfer command line: $ 7zCrypto.exe g -prv key.prv -pub key.pub -len 2048
-
-Now, there are two options for generating a key file. You can generate one and include in in the target archive,
+There are two options for generating a key file. You can generate one and include in in the target archive,
 or you can use an external one. For small archives it's easier to include it within the archive because it doesn't
-take long to add it. However, as 7z rebuilds the archive each time you add a file large archives it can take a
-significant amount of time. The command a will add it to the archive, whereas k will generate an external file.
+take long to add it. However, because 7z rebuilds the archive each time you add a file, adding the key file can
+take a significant amount of time for larger archives. 
 
+The command `a` will add it to the archive, whereas `k` will generate an external file.
+
+```
 $ 7zCrypto.exe a
 7z archive : archive.7z
 Archive password : password
@@ -70,30 +77,37 @@ Public key file : ^Z
 
 The key file was successfully added to 'archive.7z'
 It can now be decrypted with any matching private keys
+```
 
-That is for windows, on Linux you would do CTRL + D instead of Z to signal no more keys.
-Checking the password can take a while with large archives, too. If you know you've entered the password correctly
-you can specify -nocheck to disable the check. As with generating the key, adding a key can be done completely
+That's for windows, on Linux you'd do CTRL + D instead of Z to signal no more keys.
+
+Checking the password can take a while with large archives. If you know you've entered the password correctly
+you can specify `-nocheck` to disable the check. As with generating the key, adding a key can be done completely
 via command line. 
 
-$ 7zCrypto.exe a -arc archive.7z -pub key.pub -p password
+`$ 7zCrypto.exe a -arc archive.7z -pub key.pub -p password`
 or 
-$ 7zCrypto.exe k -arc archive.7z -pub key.pub -p password -keyfile archive.7z.key
+`$ 7zCrypto.exe k -arc archive.7z -pub key.pub -p password -keyfile archive.7z.key`
 
-If you specify the public key file via command line you won't be prompted for keys and as such the keyfile will only
+If you specify the public key file via command line you won't be prompted for more keys and as such the keyfile will only
 be built for a single key pair.
 
 Finally, to decrypt an archive with your private key...
 
+```
 $ 7zCrypto.exe e
 Archive : archive.7z
 Private key: key.prv
 
 The archive was successfully extracted
+```
 
-If you want to use an external keyfile,
+If you want to use an external keyfile...
+
+```
 $ 7zCrypto.exe e -keyfile archive.7z.key -prv key.prv -arc archive.7z
 Processing key file...
 Extracting archive...
 
 The archive was successfully extracted
+```
