@@ -145,7 +145,7 @@ private:
 public:
 	CTempFile() : T(), do_delete(true) {}
 	CTempFile(const char* file, std::ios_base::openmode mode) : 
-	  T(file, mode), file(file), do_delete(false) { }
+	  T(file, mode), file(file), do_delete(true) { }
 
 	void open(const char* file, std::ios_base::openmode mode) {
 		this->file = file;
@@ -168,6 +168,7 @@ public:
 
 s_arg_entry g_arg_list[] = 
 {
+	// name, id, is_switch, number of required arguments to immediately follow
 	{"a", kAddKeyToArchive, false, 0},
 	{"e", kExtractArchive, false, 0},
 	{"g", kGenerateKey, false, 0},
@@ -208,15 +209,13 @@ int show_help()
 	return 1;
 }
 
-template <class T>
-T ReadCommandLineType(const s_arg_param& p);
-template <>
-std::string ReadCommandLineType<std::string>(const s_arg_param& p)
+template <class T> T ReadCommandLineType(const s_arg_param& p);
+
+template <> std::string ReadCommandLineType<std::string>(const s_arg_param& p)
 {
 	return p.GetString();
 }
-template <>
-unsigned int ReadCommandLineType<unsigned int>(const s_arg_param& p)
+template <> unsigned int ReadCommandLineType<unsigned int>(const s_arg_param& p)
 {
 	return p.GetUInt();
 }
@@ -349,7 +348,7 @@ int main(int argc, char** argv)
 				std::string archive = ReadArchiveName(c);
 
 				CTempFile<std::fstream> file(KEY_FILE_NAME, std::ios_base::out);
-				if (file.fail()) throw std::runtime_error("cannot create temeporary keyfile.");
+				if (file.fail()) throw std::runtime_error("cannot create temporary keyfile.");
 				GenerateKeyFile(c, archive, file);
 				
 				file.close(); // 7z will be wanting to read it
